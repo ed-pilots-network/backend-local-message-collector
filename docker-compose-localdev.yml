@@ -1,0 +1,64 @@
+version: "3.8"
+
+name: "edpn-local"
+services:
+  zookeeper:
+    image: "bitnami/zookeeper:3.8"
+    restart: on-failure
+    environment:
+      - ALLOW_ANONYMOUS_LOGIN=yes
+    volumes:
+      - "zookeeper:/bitnami"
+    healthcheck:
+      test: nc -vz localhost 2181 || exit -1
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 0s
+
+  kafka:
+    image: "bitnami/kafka:3.4"
+    restart: on-failure
+    environment:
+      - KAFKA_CFG_ZOOKEEPER_CONNECT=zookeeper:2181
+      - KAFKA_CFG_ADVERTISED_LISTENERS=PLAINTEXT://localhost:9092
+      - ALLOW_PLAINTEXT_LISTENER=yes
+      - KAFKA_CFG_COMPRESSION_TYPE=gzip
+    volumes:
+      - "kafka:/bitnami/kafka"
+    ports:
+      - "9092:9092"
+    healthcheck:
+      test: kafka-topics.sh --list --bootstrap-server localhost:9092
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    depends_on:
+      zookeeper:
+        condition: service_healthy
+
+  local-message-collector-mongo:
+    image: "mongo:6"
+    restart: on-failure
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=mongodb
+      - MONGO_INITDB_ROOT_PASSWORD=mongodb
+    ports:
+      - "27017:27017"
+    volumes:
+      - "local-message-collector-mongo:/data/db"
+    healthcheck:
+      test: echo 'db.stats().ok' | mongo localhost:27017/test --quiet
+      interval: 10s
+      timeout: 10s
+      retries: 5
+      start_period: 0s
+
+volumes:
+  zookeeper:
+    driver: local
+  kafka:
+    driver: local
+  local-message-collector-mongo:
+    driver: local
